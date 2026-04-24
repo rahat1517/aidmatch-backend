@@ -1,25 +1,42 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
-
-from app.core.database import get_db
-from app.api.deps import get_current_user
-from app.schemas.auth import RegisterRequest, LoginRequest, TokenResponse
+from app.db.session import get_db
+from app.schemas.auth import FirebaseSyncRequest
+from app.core.firebase import verify_firebase_token
+from app.services.auth_service import firebase_sync_user
 from app.schemas.user import UserResponse
-from app.services.auth_service import register_user, login_user
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
-
-
-@router.post("/register", response_model=UserResponse)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    return register_user(db, payload)
+router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    return login_user(db, payload)
+@router.post("/firebase-sync", response_model=UserResponse)
+def firebase_sync(
+    payload: FirebaseSyncRequest,
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Firebase token"
+        )
 
+    id_token = authorization.split(" ")[1]
 
-@router.get("/me", response_model=UserResponse)
-def get_me(current_user=Depends(get_current_user)):
-    return current_user
+    decoded = verify_firebase_token(id_token)
+
+    if not decoded:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Firebase token"
+        )
+
+    firebase_uid = decoded.get("uid")
+
+    if not firebase_uid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Firebase token payload"
+        )
+
+    return firebase_sync_user(db, firebase_uid, payload)

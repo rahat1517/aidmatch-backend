@@ -24,3 +24,16 @@ class User(Base):
     campaigns = relationship("Campaign", back_populates="created_by_user")
     donations = relationship("app.models.donation.Donation", back_populates="donor")
     notifications = relationship("Notification", back_populates="user")
+
+    firebase_uid: Mapped[str | None] = mapped_column(
+    String(255), unique=True, index=True, nullable=True
+)
+
+location: Mapped[str | None] = mapped_column(
+    String(150), nullable=True
+)
+
+# IMPORTANT: make nullable
+password_hash: Mapped[str | None] = mapped_column(
+    String(255), nullable=True
+)
