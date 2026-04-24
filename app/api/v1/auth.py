@@ -14,11 +14,8 @@ router = APIRouter()
 def firebase_sync(
     payload: FirebaseSyncRequest,
     db: Session = Depends(get_db),
-    authorization: str | None = Header(None)
+    authorization: str = Header(None)
 ):
-    # Temporary fallback for hackathon:
-    # If Firebase Admin credentials are missing, token verification may fail.
-    # In that case, use email as temporary firebase_uid so frontend can continue.
     firebase_uid = payload.email
 
     if authorization and authorization.startswith("Bearer "):
@@ -26,6 +23,6 @@ def firebase_sync(
         decoded = verify_firebase_token(id_token)
 
         if decoded and decoded.get("uid"):
-            firebase_uid = decoded["uid"]
+            firebase_uid = decoded.get("uid")
 
     return firebase_sync_user(db, firebase_uid, payload)
