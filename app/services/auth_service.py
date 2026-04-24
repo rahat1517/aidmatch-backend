@@ -1,9 +1,48 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from app.schemas.auth import FirebaseSyncRequest
 
 from app.models.user import User
 from app.core.security import hash_password, verify_password, create_access_token
 from app.schemas.auth import RegisterRequest, LoginRequest
+
+def firebase_sync_user(db: Session, firebase_uid: str, payload: FirebaseSyncRequest):
+    user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
+    if user:
+        user.full_name = payload.full_name
+        user.email = payload.email
+        user.role = payload.role
+        user.location = payload.location
+        db.commit()
+        db.refresh(user)
+        return user
+    
+
+    existing_user = db.query(User).filter(User.email == payload.email).first()
+
+    if existing_user:
+        existing_user.firebase_uid = firebase_uid
+        existing_user.full_name = payload.full_name
+        existing_user.role = payload.role
+        existing_user.location = payload.location
+        db.commit()
+        db.refresh(existing_user)
+        return existing_user
+
+    user = User(
+        firebase_uid=firebase_uid,
+        full_name=payload.full_name,
+        email=payload.email,
+        password_hash=None,
+        role=payload.role,
+        location=payload.location,
+    )
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def register_user(db: Session, payload: RegisterRequest):
