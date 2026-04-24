@@ -27,10 +27,10 @@ def create_donation(db: Session, donor_id: int, payload):
         quantity=payload.quantity,
         amount=payload.amount,
         donor_note=payload.donor_note,
-        recommendation_level=recommendation["recommendation_level"],
-        recommendation_reason=recommendation["reason"],
-        better_alternative=recommendation["better_alternative"],
-        suggested_quantity=recommendation["suggested_quantity"],
+        recommendation_level=recommendation.get("recommendation_level"),
+        recommendation_reason=recommendation.get("reason"),
+        better_alternative=recommendation.get("better_alternative"),
+        suggested_quantity=recommendation.get("suggested_quantity"),
     )
 
     db.add(donation)
@@ -82,10 +82,31 @@ def receive_donation(
     db.commit()
     db.refresh(item)
     db.refresh(donation)
+
     return donation
 
 
-def reject_donation(db: Session, donation_id: int, payload):
+def mark_donation_used(db: Session, donation_id: int):
+    donation = db.query(Donation).filter(Donation.id == donation_id).first()
+
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    if donation.status != "received":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only received donations can be used",
+        )
+
+    donation.status = "used"
+    donation.used_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(donation)
+    return donation
+
+
+def reject_donation(db: Session, donation_id: int, admin_note: str | None = None):
     donation = db.query(Donation).filter(Donation.id == donation_id).first()
 
     if not donation:
@@ -98,51 +119,8 @@ def reject_donation(db: Session, donation_id: int, payload):
         )
 
     donation.status = "rejected"
-    donation.admin_note = payload.admin_note
+    donation.admin_note = admin_note
 
     db.commit()
-    db.refresh(donation)
-    return donation
-
-
-def mark_donation_used(db: Session, donation_id: int, used_quantity: int | None = None):
-    donation = db.query(Donation).filter(Donation.id == donation_id).first()
-
-    if not donation:
-        raise HTTPException(status_code=404, detail="Donation not found")
-
-    if donation.status not in ["received", "pending"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only received donations can be used",
-        )
-
-    item = db.query(Item).filter(Item.id == donation.item_id).first()
-
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    qty = used_quantity or donation.quantity or 0
-
-    if qty <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Used quantity must be greater than 0",
-        )
-
-    available_stock = item.received_quantity - item.used_quantity
-
-    if qty > available_stock:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Not enough available stock",
-        )
-
-    item.used_quantity += qty
-    donation.status = "used"
-    donation.used_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(item)
     db.refresh(donation)
     return donation

@@ -10,7 +10,6 @@ from app.schemas.donation import (
     DonationResponse,
     DonationReceiveRequest,
     DonationRejectRequest,
-    DonationUsedRequest,
 )
 from app.services.donation_service import (
     create_donation,
@@ -70,18 +69,13 @@ def reject_donation_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    return reject_donation(db, donation_id, payload)
+    return reject_donation(db, donation_id, payload.admin_note)
 
 
 @router.post("/{donation_id}/used", response_model=DonationResponse)
 def mark_used_route(
     donation_id: int,
-    payload: DonationUsedRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    return mark_donation_used(
-        db=db,
-        donation_id=donation_id,
-        used_quantity=payload.used_quantity,
-    )
+    return mark_donation_used(db, donation_id)
