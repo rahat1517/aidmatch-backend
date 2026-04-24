@@ -1,38 +1,42 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.item import Item
-from app.models.campaign import Campaign
-from app.schemas.item import ItemCreate, ItemUpdate
 
 
-def create_item(db: Session, campaign_id: int, payload: ItemCreate):
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
-
+def create_item(db: Session, campaign_id: int, payload):
     item = Item(
         campaign_id=campaign_id,
         name=payload.name,
         unit=payload.unit,
-        required_quantity=payload.required_quantity
+        required_quantity=payload.required_quantity,
+        received_quantity=0,
+        used_quantity=0,
     )
+
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 
-def update_item(db: Session, item_id: int, payload: ItemUpdate):
+def list_items_by_campaign(db: Session, campaign_id: int):
+    return db.query(Item).filter(Item.campaign_id == campaign_id).all()
+
+
+def update_item(db: Session, item_id: int, payload):
     item = db.query(Item).filter(Item.id == item_id).first()
+
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    if payload.name is not None:
+    if hasattr(payload, "name") and payload.name is not None:
         item.name = payload.name
-    if payload.unit is not None:
+
+    if hasattr(payload, "unit") and payload.unit is not None:
         item.unit = payload.unit
-    if payload.required_quantity is not None:
+
+    if hasattr(payload, "required_quantity") and payload.required_quantity is not None:
         item.required_quantity = payload.required_quantity
 
     db.commit()
@@ -40,7 +44,39 @@ def update_item(db: Session, item_id: int, payload: ItemUpdate):
     return item
 
 
-def get_item_summary(item: Item):
+def use_item(db: Session, item_id: int, payload):
+    item = db.query(Item).filter(Item.id == item_id).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    available_stock = item.received_quantity - item.used_quantity
+
+    if payload.used_quantity <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Used quantity must be greater than 0"
+        )
+
+    if payload.used_quantity > available_stock:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not enough available stock"
+        )
+
+    item.used_quantity += payload.used_quantity
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+def get_item_summary(db: Session, item_id: int):
+    item = db.query(Item).filter(Item.id == item_id).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
     available_stock = item.received_quantity - item.used_quantity
     remaining_need = item.required_quantity - item.used_quantity
 
@@ -52,23 +88,5 @@ def get_item_summary(item: Item):
         "received_quantity": item.received_quantity,
         "used_quantity": item.used_quantity,
         "available_stock": max(available_stock, 0),
-        "remaining_need": max(remaining_need, 0)
+        "remaining_need": max(remaining_need, 0),
     }
-
-
-def use_item_quantity(db: Session, item_id: int, used_quantity: int):
-    item = db.query(Item).filter(Item.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    available_stock = item.received_quantity - item.used_quantity
-    if used_quantity > available_stock:
-        raise HTTPException(
-            status_code=400,
-            detail="Used quantity cannot exceed available stock"
-        )
-
-    item.used_quantity += used_quantity
-    db.commit()
-    db.refresh(item)
-    return item
