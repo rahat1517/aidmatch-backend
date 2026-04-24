@@ -3,28 +3,39 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.api.deps import get_current_user, get_current_admin
+from app.models.user import User
 from app.models.donation import Donation
 from app.schemas.donation import (
     DonationCreate,
     DonationResponse,
     DonationReceiveRequest,
-    DonationRejectRequest
+    DonationRejectRequest,
+    DonationUsedRequest,
 )
 from app.services.donation_service import (
     create_donation,
+    list_my_donations,
     receive_donation,
     reject_donation,
-    mark_donation_used
+    mark_donation_used,
 )
 
-router = APIRouter(prefix="/donations", tags=["Donations"])
+router = APIRouter()
+
+
+@router.get("/", response_model=list[DonationResponse])
+def all_donations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    return db.query(Donation).order_by(Donation.id.desc()).all()
 
 
 @router.post("/", response_model=DonationResponse)
 def create_donation_route(
     payload: DonationCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     return create_donation(db, current_user.id, payload)
 
@@ -32,17 +43,9 @@ def create_donation_route(
 @router.get("/my", response_model=list[DonationResponse])
 def my_donations(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    return db.query(Donation).filter(Donation.donor_id == current_user.id).order_by(Donation.id.desc()).all()
-
-
-@router.get("/", response_model=list[DonationResponse])
-def all_donations(
-    db: Session = Depends(get_db),
-    admin=Depends(get_current_admin)
-):
-    return db.query(Donation).order_by(Donation.id.desc()).all()
+    return list_my_donations(db, current_user.id)
 
 
 @router.post("/{donation_id}/receive", response_model=DonationResponse)
@@ -50,9 +53,14 @@ def receive_donation_route(
     donation_id: int,
     payload: DonationReceiveRequest,
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
 ):
-    return receive_donation(db, donation_id, payload.received_quantity, payload.admin_note)
+    return receive_donation(
+        db=db,
+        donation_id=donation_id,
+        received_quantity=payload.received_quantity,
+        admin_note=payload.admin_note,
+    )
 
 
 @router.post("/{donation_id}/reject", response_model=DonationResponse)
@@ -60,15 +68,20 @@ def reject_donation_route(
     donation_id: int,
     payload: DonationRejectRequest,
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
 ):
-    return reject_donation(db, donation_id, payload.admin_note)
+    return reject_donation(db, donation_id, payload)
 
 
 @router.post("/{donation_id}/used", response_model=DonationResponse)
 def mark_used_route(
     donation_id: int,
+    payload: DonationUsedRequest,
     db: Session = Depends(get_db),
-    admin=Depends(get_current_admin)
+    current_user: User = Depends(get_current_admin),
 ):
-    return mark_donation_used(db, donation_id)
+    return mark_donation_used(
+        db=db,
+        donation_id=donation_id,
+        used_quantity=payload.used_quantity,
+    )
