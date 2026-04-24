@@ -8,9 +8,10 @@ from app.api.v1.recommendations import router as recommendation_router
 from app.api.v1.notifications import router as notification_router
 
 api_router = APIRouter()
-api_router.include_router(auth_router)
-api_router.include_router(campaign_router)
-api_router.include_router(item_router)
-api_router.include_router(donation_router)
-api_router.include_router(recommendation_router)
-api_router.include_router(notification_router)
+
+api_router.include_router(auth_router, tags=["Auth"])
+api_router.include_router(campaign_router, prefix="/campaigns", tags=["Campaigns"])
+api_router.include_router(item_router, prefix="/items", tags=["Items"])
+api_router.include_router(donation_router, prefix="/donations", tags=["Donations"])
+api_router.include_router(recommendation_router, prefix="/recommendations", tags=["Recommendations"])
+api_router.include_router(notification_router, prefix="/notifications", tags=["Notifications"])
