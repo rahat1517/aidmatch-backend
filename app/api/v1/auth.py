@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.core.database import get_db
 from app.schemas.auth import FirebaseSyncRequest
 from app.core.firebase import verify_firebase_token
 from app.services.auth_service import firebase_sync_user
