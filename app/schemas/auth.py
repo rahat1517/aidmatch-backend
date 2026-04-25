@@ -25,5 +25,5 @@ class MessageResponse(BaseModel):
 class FirebaseSyncRequest(BaseModel):
     full_name: str
     email: EmailStr
-    role: str = "donor"
+    role: str | None = None
     location: str | None = None
