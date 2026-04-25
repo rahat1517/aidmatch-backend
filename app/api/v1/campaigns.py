@@ -5,15 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.api.deps import get_current_admin
+from app.models.user import User
 from app.models.campaign import Campaign
 from app.schemas.campaign import CampaignCreate, CampaignResponse
-
 
 router = APIRouter()
 
 
-def generate_public_code(length: int = 6) -> str:
-    return "AM-" + "".join(random.choices(string.digits, k=4))
+def generate_public_code(length: int = 4) -> str:
+    return "AM-" + "".join(random.choices(string.digits, k=length))
 
 
 @router.get("/", response_model=list[CampaignResponse])
@@ -25,6 +26,7 @@ def list_campaigns(db: Session = Depends(get_db)):
 def create_campaign(
     payload: CampaignCreate,
     db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
 ):
     public_code = generate_public_code()
 
@@ -37,7 +39,7 @@ def create_campaign(
         description=payload.description,
         location=payload.location,
         is_active=True,
-        created_by=1,  # hackathon mode
+        created_by=current_admin.id,
     )
 
     db.add(campaign)
@@ -64,6 +66,7 @@ def update_campaign(
     campaign_id: int,
     payload: CampaignCreate,
     db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
 ):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
 
@@ -73,6 +76,7 @@ def update_campaign(
     campaign.title = payload.title
     campaign.description = payload.description
     campaign.location = payload.location
+    campaign.is_active = payload.is_active
 
     db.commit()
     db.refresh(campaign)
