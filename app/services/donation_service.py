@@ -9,14 +9,24 @@ from app.services.recommendation_service import get_recommendation
 
 
 def create_donation(db: Session, donor_id: int, payload):
-    recommendation = get_recommendation(db, payload)
+    recommendation = {
+        "level": None,
+        "reason": None,
+        "better_alternative": None,
+        "suggested_quantity": None,
+    }
+
+    try:
+        recommendation = get_recommendation(db, payload) or recommendation
+    except Exception:
+        pass
 
     donation = Donation(
         donor_id=donor_id,
         campaign_id=payload.campaign_id,
         item_id=payload.item_id,
         donation_type=payload.donation_type,
-        quantity=payload.quantity,
+        quantity=payload.quantity or 0,
         amount=payload.amount or 0,
         donor_note=payload.donor_note,
         status="pending",
